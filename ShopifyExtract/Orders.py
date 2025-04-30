@@ -28,31 +28,37 @@ def convert_to_dataframe(anorder) -> pd.DataFrame:
                       )
     if len(fulfilled_items) > 0:
         shipped = fulfilled_items[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_gift_card', 'sh_id', 
-                'sh_fulfillment_status', 'sh_price', 'sh_sku', 'sh_quantity', 'sh_pre_tax_price', 'fulfillments.lineitems.id']]
+                'sh_fulfillment_status', 'sh_price', 'sh_sku', 'sh_quantity', 'sh_pre_tax_price']]
     # Discounts
-    discount_items = pd.json_normalize(anorder.to_dict(), 
-                      record_path=['fulfillments', 'line_items', 'discount_allocations'],
-                      meta=[['fulfillments', 'line_items', 'id']],
-                      record_prefix = 'sh_',
-                      errors='ignore'
-                      )
-    if len(discount_items)> 0:
-        discount_items['sh_amount'] = pd.to_numeric(discount_items["sh_amount"])
-        discounts = discount_items.groupby(['fulfillments.line_items.id'])['sh_amount'].sum().reset_index().set_axis(['fulfillments.lineitems.id', 'discount'], axis=1)
-        shipped = pd.merge(shipped, discounts, on='fulfillments.lineitems.id', how='left')
-    # Taxes
-    tax_items = pd.json_normalize(anorder.to_dict(), 
-                      record_path=['fulfillments', 'line_items', 'tax_lines'],
-                      meta=[['fulfillments', 'line_items', 'id']],
-                      record_prefix = 'sh_',
-                      errors='ignore'
-                      )
-    if len(tax_items) > 0:
-        tax_items['sh_price'] = pd.to_numeric(tax_items["sh_price"])
-        taxes = tax_items.groupby(['fulfillments.line_items.id'])['sh_price'].sum().reset_index().set_axis(['fulfillments.lineitems.id', 'tax'], axis=1)
-        shipped = pd.merge(shipped, taxes, on='fulfillments.lineitems.id', how='left')
-    #shipped = shipped[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_sku', 'sh_quantity', 'sh_price', 'sh_pre_tax_price', 'sh_gift_card', 'discount', 'tax']]
-    return shipped
+        discount_items = pd.json_normalize(anorder.to_dict(), 
+                        record_path=['fulfillments', 'line_items', 'discount_allocations'],
+                        meta=[['fulfillments', 'line_items', 'id']],
+                        record_prefix = 'sh_',
+                        errors='ignore'
+                        )
+        if len(discount_items)> 0:
+            discount_items['sh_amount'] = pd.to_numeric(discount_items["sh_amount"])
+            discounts = discount_items.groupby(['fulfillments.line_items.id'])['sh_amount'].sum().reset_index().set_axis(['sh_id', 'discount'], axis=1)
+            shipped = pd.merge(shipped, discounts, on='fulfillments.lineitems.id', how='left')
+        else:
+            shipped['discount'] = 0
+        # Taxes
+        tax_items = pd.json_normalize(anorder.to_dict(), 
+                        record_path=['fulfillments', 'line_items', 'tax_lines'],
+                        meta=[['fulfillments', 'line_items', 'id']],
+                        record_prefix = 'sh_',
+                        errors='ignore'
+                        )
+        if len(tax_items) > 0:
+            tax_items['tax_price'] = pd.to_numeric(tax_items["sh_price"])
+            taxes = tax_items.groupby(['fulfillments.line_items.id'])['tax_price'].sum().reset_index().set_axis(['sh_id', 'tax'], axis=1)
+            shipped = pd.merge(shipped, taxes, on='sh_id', how='left')
+        else:
+            shipped['tax'] = 0
+        shipped = shipped[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_sku', 'sh_quantity', 'sh_price', 'sh_pre_tax_price', 'sh_gift_card', 'discount', 'tax']]
+        return shipped 
+    else:
+        pass
 
 convert_to_dataframe(a[2847])
 
