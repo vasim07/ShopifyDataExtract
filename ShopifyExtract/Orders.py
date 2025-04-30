@@ -18,8 +18,10 @@ def extract_orders() -> shopify.collection.PaginatedCollection:
         all_orders.extend(orderspage)
     return all_orders
 
+
 def convert_to_dataframe(anorder) -> pd.DataFrame:
     # Shipped
+    report_date = pd.to_datetime(start_date).strftime('%Y-%m-%d')
     fulfilled_items = pd.json_normalize(anorder.to_dict(), 
                       record_path=['fulfillments', 'line_items'],
                       meta=['id', 'source_name', 'location_id',['fulfillments', 'updated_at'],['fulfillments', 'lineitems', 'id']],
@@ -37,11 +39,11 @@ def convert_to_dataframe(anorder) -> pd.DataFrame:
                         errors='ignore'
                         )
         if len(discount_items)> 0:
-            discount_items['sh_amount'] = pd.to_numeric(discount_items["sh_amount"])
+            discount_items.loc[:,'sh_amount'] = pd.to_numeric(discount_items["sh_amount"])
             discounts = discount_items.groupby(['fulfillments.line_items.id'])['sh_amount'].sum().reset_index().set_axis(['sh_id', 'discount'], axis=1)
-            shipped = pd.merge(shipped, discounts, on='fulfillments.lineitems.id', how='left')
+            shipped = pd.merge(shipped, discounts, on='sh_id', how='left')
         else:
-            shipped['discount'] = 0
+            shipped.loc[:,'discount'] = 0
         # Taxes
         tax_items = pd.json_normalize(anorder.to_dict(), 
                         record_path=['fulfillments', 'line_items', 'tax_lines'],
@@ -50,17 +52,25 @@ def convert_to_dataframe(anorder) -> pd.DataFrame:
                         errors='ignore'
                         )
         if len(tax_items) > 0:
-            tax_items['tax_price'] = pd.to_numeric(tax_items["sh_price"])
+            tax_items.loc[:,'tax_price'] = pd.to_numeric(tax_items["sh_price"])
             taxes = tax_items.groupby(['fulfillments.line_items.id'])['tax_price'].sum().reset_index().set_axis(['sh_id', 'tax'], axis=1)
             shipped = pd.merge(shipped, taxes, on='sh_id', how='left')
         else:
-            shipped['tax'] = 0
-        shipped = shipped[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_sku', 'sh_quantity', 'sh_price', 'sh_pre_tax_price', 'sh_gift_card', 'discount', 'tax']]
+            shipped.loc[:,'tax'] = 0
+        shipped = shipped[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_fulfillment_status','sh_sku', 'sh_quantity', 'sh_price', 'sh_pre_tax_price', 'sh_gift_card', 'discount', 'tax']]
+        shipped = shipped.set_axis(['ORDER_ID', 'UPDATED_DATE', 'SOURCE', 'LOCATION', 'FULFILLMENT_STATUS' ,'SKU', 'QUANTITY', 'RETAIL_PRICE', 'SALES_PRICE', 'GIFT_CARD', 'DISCOUNT', 'TAX'], axis=1)
+        # filter fulfillment_status, filter Updated_Date
+        shipped.loc[:, 'UPDATED_DATE'] = pd.to_datetime(shipped["UPDATED_DATE"]).dt.date
+        shipped["CHANNEL"] = np.where(shipped.Source_Name=='pos', "RETAIL", "ECOMMERCE")
+        #shipped.query('UPDATED_DATE == @report_date')
+        shipped = shipped.replace({np.nan:None})
         return shipped 
     else:
         pass
 
-convert_to_dataframe(a[2847])
+a = extract_orders()
+dfs = [convert_to_dataframe(a[i]) for i in range(len(a))]
+df = pd.concat(dfs)
 
 shopify.ShopifyResource.set_site(shopify_store_url)
 shopify.ShopifyResource.set_user(shopify_api_key)  #API_KEY
