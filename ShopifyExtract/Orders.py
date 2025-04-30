@@ -20,7 +20,7 @@ def extract_orders() -> shopify.collection.PaginatedCollection:
         all_orders.extend(orderspage)
     return all_orders
 
-# Store as Broze data
+# Store json file as Bronze data.
 
 def process_fulfillments(anorder) -> pd.DataFrame:
     # Shipped
@@ -72,6 +72,16 @@ def process_fulfillments(anorder) -> pd.DataFrame:
         pass
 
 def process_refunds(anorder) -> pd.DataFrame:
+    # anorder = a[2502]
+    # [(k, i.to_dict()["id"]) for k,i in enumerate(a) if len(i.to_dict()["refunds"]) > 0]
+    refund_items = pd.json_normalize(anorder.to_dict(), 
+                      record_path=['refunds', 'refund_line_items'],
+                      meta=['id', 'source_name', 'location_id',['refunds', 'updated_at']],
+                      record_prefix = 'r_',
+                      errors='ignore'
+                      )
+    # FIX
+    refund_items[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_fulfillment_status','sh_sku', 'sh_quantity', 'sh_price', 'sh_pre_tax_price', 'sh_gift_card', 'discount', 'tax']]
     pass
     
 a = extract_orders()
