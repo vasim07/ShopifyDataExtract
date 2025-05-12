@@ -5,6 +5,7 @@ import shopify
 import logging
 import typing
 from .metadata import start_date, end_date, shopify_store_url, shopify_api_key, shopify_api_password
+from emails import send_email
 
 shopify.ShopifyResource.set_site(shopify_store_url)
 shopify.ShopifyResource.set_user(shopify_api_key)  #API_KEY
@@ -83,10 +84,17 @@ def process_refunds(anorder) -> pd.DataFrame:
     # FIX
     refund_items[['id', 'fulfillments.updated_at', 'source_name', 'location_id', 'sh_fulfillment_status','sh_sku', 'sh_quantity', 'sh_price', 'sh_pre_tax_price', 'sh_gift_card', 'discount', 'tax']]
     pass
-    
-a = extract_orders()
-dfs = [process_fulfillments(a[i]) for i in range(len(a))]
-df = pd.concat(dfs)
+
+if __name__ == "__main__":
+    # Set up logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    logger.info("Extracting orders from Shopify using extract_orders function...")    
+    a = extract_orders()
+    logger.info("Transforming orders using process_fulfillments function...")    
+    dfs = [process_fulfillments(a[i]) for i in range(len(a))]
+    df = pd.concat(dfs)
 
 
 #shopify.ShopifyResource.clear_session()
